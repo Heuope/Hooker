@@ -12,7 +12,7 @@ HANDLE WINAPI HookCreateFile(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dw
 
 HFILE(WINAPI* RealOpenFile)(LPCSTR lpFileName, LPOFSTRUCT lpReOpenBuff, UINT uStyle) = OpenFile;
 
-HFILE WINAPI HookReadFile(LPCSTR lpFileName, LPOFSTRUCT lpReOpenBuff, UINT uStyle)
+HFILE WINAPI HookOpenFile(LPCSTR lpFileName, LPOFSTRUCT lpReOpenBuff, UINT uStyle)
 {
 	// write message
 
@@ -71,4 +71,46 @@ LSTATUS WINAPI HookRegCloseKey(HKEY hKey)
 	// write message
 
 	return RealRegCloseKey(hKey);
+}
+
+BOOL APIENTRY DllMain(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
+{
+	switch (Reason)
+	{
+		case DLL_PROCESS_ATTACH:
+			DetourRestoreAfterWith();
+			DetourTransactionBegin();
+			DetourUpdateThread(GetCurrentThread());
+			DetourAttach(&(PVOID&)RealCreateFile, HookCreateFile);
+			DetourAttach(&(PVOID&)RealReadFile, HookReadFile);
+			DetourAttach(&(PVOID&)RealWriteFile, HookWriteFile);
+			DetourAttach(&(PVOID&)RealOpenFile, HookOpenFile);
+			DetourAttach(&(PVOID&)RealRegGetValue, HookRegGetValue);
+			DetourAttach(&(PVOID&)RealRegSetValue, HookRegSetValue);
+			DetourAttach(&(PVOID&)RealRegOpenKey, HookRegOpenKey);
+			DetourAttach(&(PVOID&)RealRegCloseKey, HookRegCloseKey);
+			DetourTransactionCommit();
+			break;
+		case DLL_THREAD_ATTACH:
+		case DLL_THREAD_DETACH:
+		case DLL_PROCESS_DETACH:
+			DetourRestoreAfterWith();
+			DetourTransactionBegin();
+			DetourUpdateThread(GetCurrentThread());
+			DetourDetach(&(PVOID&)RealCreateFile, HookCreateFile);
+			DetourDetach(&(PVOID&)RealReadFile, HookReadFile);
+			DetourDetach(&(PVOID&)RealWriteFile, HookWriteFile);
+			DetourDetach(&(PVOID&)RealOpenFile, HookOpenFile);
+			DetourDetach(&(PVOID&)RealRegGetValue, HookRegGetValue);
+			DetourDetach(&(PVOID&)RealRegSetValue, HookRegSetValue);
+			DetourDetach(&(PVOID&)RealRegOpenKey, HookRegOpenKey);
+			DetourDetach(&(PVOID&)RealRegCloseKey, HookRegCloseKey);
+			DetourTransactionCommit();
+			break;
+	}
+}
+
+extern "C" _declspec(dllexport) void Hook()
+{
+	
 }
