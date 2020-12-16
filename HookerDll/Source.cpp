@@ -1,11 +1,24 @@
 #include <windows.h>
 #include <detours.h>
+#include <iostream>
+#include <fstream>
+#include <string>
+
+void LogMessage(std::string message)
+{
+	std::ofstream out("Logs.txt", std::ios::app);
+	if (out.is_open())
+	{
+		out << message << std::endl;
+	}
+	out.close();
+}
 
 HANDLE(WINAPI* RealCreateFile)(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile) = CreateFile;
 
 HANDLE WINAPI HookCreateFile(LPCWSTR lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode, LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition, DWORD dwFlagsAndAttributes, HANDLE hTemplateFile)
 {
-	// write message
+	LogMessage("Program call CreateFile");
 
 	return RealCreateFile(lpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes, dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
 }
@@ -14,7 +27,7 @@ HFILE(WINAPI* RealOpenFile)(LPCSTR lpFileName, LPOFSTRUCT lpReOpenBuff, UINT uSt
 
 HFILE WINAPI HookOpenFile(LPCSTR lpFileName, LPOFSTRUCT lpReOpenBuff, UINT uStyle)
 {
-	// write message
+	LogMessage("Program call WriteFile");
 
 	return RealOpenFile(lpFileName, lpReOpenBuff, uStyle);
 }
@@ -23,7 +36,7 @@ BOOL(WINAPI* RealReadFile)(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesTo
 
 BOOL WINAPI HookReadFile(HANDLE hFile, LPVOID lpBuffer, DWORD nNumberOfBytesToRead, LPDWORD lpNumberOfBytesRead, LPOVERLAPPED lpOverlapped)
 {
-	// write message
+	LogMessage("Program call ReadFile");
 
 	return RealReadFile(hFile, lpBuffer, nNumberOfBytesToRead, lpNumberOfBytesRead, lpOverlapped);
 }
@@ -32,16 +45,25 @@ BOOL(WINAPI* RealWriteFile)(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytes
 
 BOOL WINAPI HookWriteFile(HANDLE hFile, LPCVOID lpBuffer, DWORD nNumberOfBytesToWrite, LPDWORD lpNumberOfBytesWritten, LPOVERLAPPED lpOverlapped)
 {
-	// write message
+	LogMessage("Program call WriteFile");
 
 	return RealWriteFile(hFile, lpBuffer, nNumberOfBytesToWrite, lpNumberOfBytesWritten, lpOverlapped);
+}
+
+BOOL (WINAPI* RealMessageBox)(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) = MessageBox;
+
+BOOL HookMessageBox(HWND hWnd, LPCTSTR lpText, LPCTSTR lpCaption, UINT uType) 
+{
+	LogMessage("Programm call MessageBox");
+
+	return RealMessageBox(hWnd, lpText, lpCaption, uType);
 }
 
 LSTATUS(WINAPI* RealRegGetValue)(HKEY hkey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData) = RegGetValueA;
 
 LSTATUS WINAPI HookRegGetValue(HKEY hKey, LPCSTR lpSubKey, LPCSTR lpValue, DWORD dwFlags, LPDWORD pdwType, PVOID pvData, LPDWORD pcbData)
 {
-	// write message
+	LogMessage("Program call RegGetValue");
 
 	return RealRegGetValue(hKey, lpSubKey, lpValue, dwFlags, pdwType, pvData, pcbData);
 }
@@ -50,7 +72,7 @@ LSTATUS(WINAPI* RealRegSetValue)(HKEY hKey, LPCSTR lpSubKey, DWORD dwType, LPCST
 
 LSTATUS WINAPI HookRegSetValue(HKEY hKey, LPCSTR lpSubKey, DWORD dwType, LPCSTR lpData, DWORD cbData)
 {
-	// write message
+	LogMessage("Program call RegSetValue");
 
 	return RealRegSetValue(hKey, lpSubKey, dwType, lpData, cbData);
 }
@@ -59,7 +81,7 @@ LSTATUS(WINAPI* RealRegOpenKey)(HKEY hKey, LPCWSTR lpSubKey, PHKEY phkResult) = 
 
 LSTATUS WINAPI HookRegOpenKey(HKEY hKey, LPCWSTR lpSubKey, PHKEY phkResult)
 {
-	// write message
+	LogMessage("Program call RegOpenKey");
 
 	return RealRegOpenKey(hKey, lpSubKey, phkResult);
 }
@@ -68,12 +90,12 @@ LSTATUS(WINAPI* RealRegCloseKey)(HKEY hKey) = RegCloseKey;
 
 LSTATUS WINAPI HookRegCloseKey(HKEY hKey)
 {
-	// write message
+	LogMessage("Program call RegCloseKey");
 
 	return RealRegCloseKey(hKey);
 }
 
-BOOL APIENTRY DllMain(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
+BOOL APIENTRY Source(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
 {
 	switch (Reason)
 	{
@@ -85,6 +107,7 @@ BOOL APIENTRY DllMain(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
 			DetourAttach(&(PVOID&)RealReadFile, HookReadFile);
 			DetourAttach(&(PVOID&)RealWriteFile, HookWriteFile);
 			DetourAttach(&(PVOID&)RealOpenFile, HookOpenFile);
+			DetourAttach(&(PVOID&)RealMessageBox, HookMessageBox);
 			DetourAttach(&(PVOID&)RealRegGetValue, HookRegGetValue);
 			DetourAttach(&(PVOID&)RealRegSetValue, HookRegSetValue);
 			DetourAttach(&(PVOID&)RealRegOpenKey, HookRegOpenKey);
@@ -101,6 +124,7 @@ BOOL APIENTRY DllMain(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
 			DetourDetach(&(PVOID&)RealReadFile, HookReadFile);
 			DetourDetach(&(PVOID&)RealWriteFile, HookWriteFile);
 			DetourDetach(&(PVOID&)RealOpenFile, HookOpenFile);
+			DetourDetach(&(PVOID&)RealMessageBox, HookMessageBox);
 			DetourDetach(&(PVOID&)RealRegGetValue, HookRegGetValue);
 			DetourDetach(&(PVOID&)RealRegSetValue, HookRegSetValue);
 			DetourDetach(&(PVOID&)RealRegOpenKey, HookRegOpenKey);
@@ -108,6 +132,7 @@ BOOL APIENTRY DllMain(HINSTANCE hInstance, DWORD Reason, LPVOID Reserved)
 			DetourTransactionCommit();
 			break;
 	}
+	return FALSE;
 }
 
 extern "C" _declspec(dllexport) void Hook()
