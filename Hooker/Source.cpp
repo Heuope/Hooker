@@ -1,19 +1,35 @@
-#include <cstdio>
+#include <iostream>
 #include <windows.h>
-#include <detours.h>
 
-int main(int argc, wchar_t* argv[])
+int main(int argc, TCHAR* argv[])
 {
+    LPCUWSTR str = L"C:\\Users\\konst_9hggwum\\OneDrive\\Desktop\\Hooker\\Debug\\Test.exe";
+    char injectDLLName[] = "C:\\Users\\konst_9hggwum\\OneDrive\\Desktop\\Hooker\\Debug\\HookerDll.dll";
     STARTUPINFO si;
     PROCESS_INFORMATION pi;
 
-    ZeroMemory(&si, sizeof(STARTUPINFO));
-    ZeroMemory(&pi, sizeof(PROCESS_INFORMATION));
+    ZeroMemory(&si, sizeof(si));
+    si.cb = sizeof(si);
+    ZeroMemory(&pi, sizeof(pi));
 
-    si.cb = sizeof(STARTUPINFO);
+    if (!CreateProcess(str, NULL, NULL, NULL, FALSE, CREATE_SUSPENDED, NULL, NULL, &si, &pi))
+    {
+        printf("CreateProcess failed (%d).\n", GetLastError());
+        return -1;
+    }
 
-    DetourCreateProcessWithDll(L"..\\Hooker\\Debug\\Test.exe", NULL, NULL, NULL, FALSE, CREATE_DEFAULT_ERROR_MODE, NULL, NULL, &si, &pi, "..\\Hooker\\Debug\\HookerDll.dll", NULL);
+    HANDLE Process = OpenProcess(PROCESS_CREATE_THREAD | PROCESS_QUERY_INFORMATION | PROCESS_VM_READ | PROCESS_VM_WRITE | PROCESS_VM_OPERATION, FALSE, pi.dwProcessId);
+    HMODULE kernelMH = GetModuleHandle(TEXT("kernel32.dll"));
+    FARPROC LoadLibraryAddress = GetProcAddress(kernelMH, "LoadLibraryA");
+
+    PVOID rmMemory = VirtualAllocEx(Process, NULL, strlen(injectDLLName) + 1, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    WriteProcessMemory(Process, (LPVOID)rmMemory, injectDLLName, strlen(injectDLLName) + 1, NULL);
+    HANDLE rmThread = CreateRemoteThread(Process, NULL, NULL, (LPTHREAD_START_ROUTINE)LoadLibraryAddress, (LPVOID)rmMemory, NULL, NULL);
+    Sleep(2000);
     ResumeThread(pi.hThread);
 
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
     return 0;
 }
